@@ -7,29 +7,48 @@ use GDO\Language\Module_Language;
 use GDO\Language\GDO_Language;
 use GDO\LanguageEditor\GDO_LangEntry;
 use GDO\File\FileUtil;
+use GDO\Core\GDO;
+use GDO\Core\MethodAdmin;
 
+/**
+ * Generate language files from the language editor database.
+ * 
+ * @author gizmore
+ */
 final class Generate extends MethodButton
 {
+	use MethodAdmin;
+	
+	public function beforeExecute()
+	{
+		$this->renderNavBar();
+		Admin::make()->renderLanguageBar();
+	}
+	
 	public function getPermission() { return 'staff'; }
 	
 	public function formValidated(GDT_Form $form)
 	{
-		return $this->generate($form);
+		return $this->generate();
 	}
 	
-	public function generate(GDT_Form $form)
+	public function getGeneratedFileDir($path='')
+	{
+		$out = $this->getModule()->filePath('_generated_/');
+		FileUtil::createDir($out);
+		return $out . $path;
+	}
+	
+	public function generate()
 	{
 		$total = 0;
-// 		$main = GDO_Language::getMainLanguage();
+
 		$mainIso = GDO_LANGUAGE;
 		$supported = Module_Language::instance()->cfgSupported();
 
 		$select = GDO_LangEntry::table()->select('le_iso, le_key, le_trans');
 		$result = $select->exec();
 		
-		$out = $this->getModule()->filePath('_generate_/');
-		FileUtil::createDir($out);
-
 		$fileData = [];
 		foreach ($supported as $lang)
 		{
@@ -76,6 +95,15 @@ final class Generate extends MethodButton
 
 	private function generateFile(GDO_Language $lang, array $fileData)
 	{
-		
+		$iso = $lang->getISO();
+		$filename = $this->getGeneratedFileDir("langfile_{$iso}.php");
+		$data = sprintf("<?php\nreturn unserialize(\"%s\");\n", GDO::escapeS(serialize($fileData[$iso])));
+		if (!file_put_contents($filename, $data))
+		{
+			$this->error('err_file_not_found', [$filename]);
+			return false;
+		}
+		return true;
 	}
+
 }
